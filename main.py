@@ -48,14 +48,15 @@ class Payment:
         self.actor = actor
         self.target = target
         self.note = note
- 
+
 
 class User:
 
     def __init__(self, username):
         self.credit_card_number = None
         self.balance = 0.0
-        self.payments = []
+        self.feeds = []
+        self.friends = set()
 
         if self._is_valid_username(username):
             self.username = username
@@ -68,17 +69,17 @@ class User:
     def add_credit_card_number(self, credit_card_number):
         self.credit_card_number = credit_card_number
 
+    def add_feed(self, feed):
+        self.feeds.append(
+            feed
+        )
+
     def retrieve_feed(self):
-        # TODO: add code here
-        res = []
-        for payment in self.payments:
-            res.append(
-                (payment.actor, payment.target, payment.amount, payment.note)
-            )
-    
+        return self.feeds
+
     def add_friend(self, new_friend):
-        # TODO: add code here
-        pass
+        self.friends.add(new_friend)
+        self.add_feed(f"{self.username} added {new_friend.username} as a friend")
 
     def add_to_balance(self, amount):
         self.balance += float(amount)
@@ -98,7 +99,11 @@ class User:
             payment = self.pay_with_balance(target, amount, note)
         else:
             payment = self.pay_with_card(target, amount, note)
-        self.payments.append(payment)
+
+        self.add_feed(
+            f"{payment.actor.username} paid {payment.target.username} {payment.amount} for {payment.note}"
+        )
+        return payment
 
     def pay_with_card(self, target, amount, note):
         amount = float(amount)
@@ -142,13 +147,16 @@ class MiniVenmo:
 
     def create_user(self, username, balance, credit_card_number):
         user = User(username=username)
+        user.add_balance(balance)
+        user.add_credit_card(credit_card_number)
         self.users.append(user)
+        return user
 
-    def render_feed(self, feed):
-        # Bobby paid Carol $5.00 for Coffee
-        # Carol paid Bobby $15.00 for Lunch
-        # TODO: add code here
-        pass
+    def render_feed(self):
+        feeds = []
+        for user in self.users:
+            feeds.extend(user.retrieve_feed())
+        return feeds
 
     @classmethod
     def run(cls):
@@ -168,7 +176,6 @@ class MiniVenmo:
 
         feed = bobby.retrieve_feed()
         venmo.render_feed(feed)
-
         bobby.add_friend(carol)
 
 
@@ -209,6 +216,24 @@ class TestUser(unittest.TestCase):
         self.assertEqual(user_a.balance, 10)
         self.assertEqual(user_b.balance, 11)
 
+    def test_user_feed(self):
+        bobby = User("Bobby")
+        carol = User("Carol")
+        bobby.add_balance(5)
+        bobby.add_balance(10)
+    
+        bobby.pay(carol, 5.00, "Coffee")
+
+        self.assertEqual(bobby.retrieve_feed(), ["Bobby paid Carol 5.0 for Coffee"])
+
+    def test_user_add_friend(self):
+        user_a = User("Asl1-0")
+        user_b = User("Asl1-1")
+        user_a.add_friend(user_b)
+
+        self.assertEqual(user_a.friends, {user_b})
+        self.assertEqual(user_a.retrieve_feed(), ["Asl1-0 added Asl1-1 as a friend"])
+
 
 class TestMiniVenmo(unittest.TestCase):
     def test_adds_user_success(self):
@@ -216,11 +241,23 @@ class TestMiniVenmo(unittest.TestCase):
         mini_venmo.create_user(
             "Asl1-",
             10,
-            "1234-1234-1234-1234"
+            "4111111111111111"
         )
         self.assertEqual(len(mini_venmo.users), 1)
         self.assertEqual(mini_venmo.users[0].username, "Asl1-")
-        
+
+    def test_feeds(self):
+        mini_venmo = MiniVenmo()
+        bobby = mini_venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = mini_venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+        carol.pay(bobby, 15.00, "Lunch")
+
+        self.assertEqual(
+            mini_venmo.render_feed(),
+            ["Bobby paid Carol 5.0 for Coffee", "Carol paid Bobby 15.0 for Lunch"]
+        )
 
 
 if __name__ == '__main__':
